@@ -1,17 +1,32 @@
-// UserContext.js
-import React, { createContext, useState, useMemo } from "react";
+import React, { createContext, useState, useEffect, useMemo } from "react";
+import { getAuth0User } from "./auth0";
 
-// This context holds user state and a setter function
 export const UserContext = createContext(null);
 
-// The provider wraps the entire app
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Memoize the context value (optional optimization)
+  useEffect(() => {
+    const checkUserSession = async () => {
+      try {
+        const { isAuthenticated, user } = await getAuth0User();
+        if (isAuthenticated && user) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkUserSession();
+  }, []);
+
   const value = useMemo(
-    () => ({ currentUser, setCurrentUser }),
-    [currentUser]
+    () => ({ currentUser, setCurrentUser, loading }),
+    [currentUser, loading]
   );
 
   return (

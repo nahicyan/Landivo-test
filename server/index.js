@@ -6,11 +6,13 @@ import session from "express-session";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import "./config/passportConfig.js"; // Import your passport configuration
+import "./config/passportConfig.js";
+import { auth } from "express-openid-connect";
 import { userRoute } from "./routes/userRoute.js";
 import { residencyRoute } from "./routes/residencyRoute.js";
 import { buyerRoute } from "./routes/buyerRoute.js";
 import { sessionLogger, ensureAuthenticated } from "./middlewares/sessionMiddleware.js";
+import { authRoute } from "./routes/authRoute.js";
 
 const app = express();
 const PORT = process.env.PORT || 8200;
@@ -27,81 +29,75 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: ["https://landivo.com"], 
+    origin: ["https://landivo.com", "http://localhost:5173"], 
     credentials: true,
     methods: "GET,POST,PUT,DELETE,OPTIONS",
     allowedHeaders: "Origin, X-Requested-With, Content-Type, Accept, Authorization",
   })
 );
 
+// 4) Auth0 configuration
+const auth0Config = {
+  authRequired: false,
+  auth0Logout: true,
+  secret: process.env.AUTH0_SECRET,
+  baseURL: process.env.AUTH0_BASE_URL,
+  clientID: process.env.AUTH0_CLIENT_ID,
+  issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET,
+  authorizationParams: {
+    response_type: 'code',
+    scope: 'openid profile email'
+  },
+};
 
+// Apply Auth0 middleware
+app.use(auth(auth0Config));
 
+// 5) Session middleware
 app.use(
   session({
-    secret: "strong_secret_key", // Use a strong secret in production
+    secret: process.env.AUTH0_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      httpOnly: true,    // Helps prevent XSS attacks
-      secure: false,     // Set to true if using HTTPS
+      httpOnly: true,
+      secure: false, // Set to true in production with HTTPS
       maxAge: 24 * 60 * 60 * 1000, // 1 day in milliseconds
-      sameSite: "lax",   // CSRF protection
+      sameSite: "lax", // CSRF protection
     },
   })
 );
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", clientConfig.redirect_uris[0]); // Allow frontend URL
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  next();
-});
-
-
+// Other middleware and configurations remain the same...
 app.use(passport.initialize());
 app.use(passport.session());
-
-// 4) Middleware for logging session and request information
 app.use(sessionLogger);
-
-// 5) Serve static "uploads" folder
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// 6) API routes
+// 6) Create an Auth0 protected middleware
+const requiresAuth = (req, res, next) => {
+  if (req.oidc.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ message: "Authentication required" });
+};
+
+// 7) API routes
 app.use("/api/user", userRoute);
 app.use("/api/residency", residencyRoute);
 app.use("/api/buyer", buyerRoute);
+app.use("/api/auth", authRoute);
 
-// 7) Authentication routes
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
-
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login" }),
-  (req, res) => {
-    console.log("Google callback triggered:", req.user);
-    res.redirect(`${clientConfig.redirect_uris[0]}?user=${req.user.email}`);
-  }
-);
-
-app.get("/auth/logout", (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({ message: "Logout failed" });
-    }
-    res.status(200).json({ message: "Logout successful" }); // Send JSON response
+// 8) Auth0 routes
+app.get('/profile', requiresAuth, (req, res) => {
+  res.json({ 
+    user: req.oidc.user,
+    isAuthenticated: req.oidc.isAuthenticated()
   });
-});
-
-// 8) Test session endpoint (with authentication check)
-app.get("/auth/test-session", ensureAuthenticated, (req, res) => {
-  console.log("Session user:", req.user);
-  res.json({ message: "Session active", user: req.user });
 });
 
 // 9) Start the server
 app.listen(PORT, () => {
-  console.log("Uploads folder path:", path.join(__dirname, "uploads"));
   console.log(`Backend is running on port ${PORT}`);
 });

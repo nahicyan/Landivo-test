@@ -27,6 +27,7 @@ import OfferTable from "./components/OfferTable/OfferTable";
 import CreateUser from "./pages/CreateUser/CreateUser";
 import ScrollToTop from "./components/ScrollToTop/ScrollToTop";
 import Sell from "./pages/Sell/Sell";
+import Callback from "./components/Auth/Callback";
 
 
 // Create the React Query client
@@ -51,6 +52,7 @@ function App() {
                     <Route path=":propertyId/offers" element={<OfferTable />} />
                   </Route>
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/callback" element={<Callback />} />
                   <Route path="/sell" element={<Sell />} />
                   <Route path="/financing" element={<Financing />} />
                   <Route path="/support" element={<Support />} />

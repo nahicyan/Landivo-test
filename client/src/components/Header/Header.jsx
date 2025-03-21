@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { checkSession, loginUser, logoutUser } from "../../utils/api";
+import { getAuth0User, logoutAuth0 } from "../../utils/auth0";
 import { UserContext } from "../../utils/UserContext";
-import LoginModal from "../LoginModal/LoginModal";
+import { useAuth0 } from "@auth0/auth0-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,43 +22,35 @@ import { Menu, X } from "lucide-react";
 const Header = () => {
   const navigate = useNavigate();
   const { currentUser, setCurrentUser } = useContext(UserContext);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0();
 
   useEffect(() => {
     const checkUserSession = async () => {
       try {
-        const response = await checkSession();
-        if (response.user) {
-          setCurrentUser(response.user);
+        const { isAuthenticated, user } = await getAuth0User();
+        if (isAuthenticated && user) {
+          setCurrentUser(user);
         }
       } catch (error) {
         console.error("Session check failed:", error);
       }
     };
+    
     checkUserSession();
-  }, [setCurrentUser]);
+  }, [setCurrentUser, isAuthenticated]);
 
-  const handleLoginData = async ({ email, password }) => {
-    try {
-      const data = await loginUser({ email, password });
-      if (data.user) setCurrentUser(data.user);
-      setShowLoginModal(false);
-    } catch (error) {
-      console.error("Login failed:", error);
-    }
+  const handleLogin = () => {
+    loginWithRedirect();
   };
 
-  // Updated logout logic using try/catch/finally
   const handleLogout = async () => {
     try {
-      await logoutUser();
+      await logoutAuth0();
+      setCurrentUser(null);
     } catch (error) {
       console.error("Logout failed:", error);
-    } finally {
-      setCurrentUser(null);
-      navigate("/");
     }
   };
 
@@ -116,7 +108,7 @@ const Header = () => {
 
                   {!currentUser ? (
                     <Button
-                      onClick={() => setShowLoginModal(true)}
+                      onClick={handleLogin}
                       className="w-full bg-[#3f4f24] text-white hover:bg-[#2c3b18]"
                     >
                       Login / Sign Up
@@ -160,9 +152,11 @@ const Header = () => {
             </NavigationMenu>
 
             {/* Login / User Dropdown */}
-            {!currentUser ? (
+            {isLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
+            ) : !currentUser ? (
               <Button
-                onClick={() => setShowLoginModal(true)}
+                onClick={handleLogin}
                 className="bg-[#3f4f24] text-white hover:bg-[#2c3b18]"
               >
                 Login / Sign Up
@@ -213,46 +207,6 @@ const Header = () => {
           </div>
         </nav>
       </div>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <nav className="lg:hidden bg-[#FDF8F2] border-t border-gray-200 shadow-md py-4">
-          <div className="flex flex-col space-y-2 px-6">
-            {["Properties", "Sell", "Financing", "About Us", "Support"].map((item) => (
-              <Link
-                key={item}
-                to={`/${item.toLowerCase().replace(/\s/g, "-")}`}
-                className="py-2 text-base font-medium text-[#333] hover:text-[#576756]"
-              >
-                {item}
-              </Link>
-            ))}
-
-            {!currentUser ? (
-              <Button
-                onClick={() => setShowLoginModal(true)}
-                className="w-full px-5 py-3 text-base font-semibold text-white bg-[#576756] rounded-md hover:bg-[#001530] transition"
-              >
-                Login / Sign Up
-              </Button>
-            ) : (
-              <Button
-                onClick={handleLogout}
-                className="w-full px-5 py-3 text-base font-semibold text-white bg-[#2C5F2D] rounded-md hover:bg-[#244a20] transition"
-              >
-                Logout
-              </Button>
-            )}
-          </div>
-        </nav>
-      )}
-
-      {showLoginModal && (
-        <LoginModal
-          onSubmit={handleLoginData}
-          onClose={() => setShowLoginModal(false)}
-        />
-      )}
     </header>
   );
 };
