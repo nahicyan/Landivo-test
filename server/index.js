@@ -97,6 +97,11 @@ app.get('/profile', requiresAuth, (req, res) => {
   });
 });
 
+app.get('/api/auth/callback', (req, res) => {
+  console.log('Auth0 callback hit'); // For debugging
+  // Rest of your callback code
+});
+
 // 9) Start the server
 app.listen(PORT, () => {
   console.log(`Backend is running on port ${PORT}`);
